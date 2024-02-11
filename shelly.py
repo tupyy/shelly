@@ -22,6 +22,13 @@ def get_data(shellyIP: str) -> Dict:
     return data
 
 
+def reset_counters(shellyIP: str) -> None:
+    url = f"http://{shellyIP}/rpc/PM1.ResetCounters?id=0&type=[\"aenergy\",\"ret_aenergy\"]"
+    result = get(url)
+    if result.status_code != 200:
+        raise ValueError("Unable to reset counters")
+
+
 def collect_metrics(metric: Gauge, system: str, value: float) -> None:
     metric.labels(system=system).set(value)
 
@@ -59,6 +66,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--ip', dest='shelly_ip', action='store',
                         help="Shelly MiniPM ip address")
+    parser.add_argument('-e', '--energy', dest='energy', action='store_true', default=False)
 
     args = parser.parse_args()
 
@@ -67,9 +75,12 @@ def main():
 
     try:
         data = get_data(args.shelly_ip)
-        collect_metrics(metrics['apower'], "homelab", data['apower'])
-        collect_metrics(metrics['current'], "homelab", data['current'])
-        collect_metrics(metrics['aenergy'], "homelab", data['aenergy'])
+        if not args.energy:
+            collect_metrics(metrics['apower'], "homelab", data['apower'])
+            collect_metrics(metrics['current'], "homelab", data['current'])
+        else:
+            collect_metrics(metrics['aenergy'], "homelab", data['aenergy'])
+            reset_counters(args.shelly_ip)
         print(generate_latest(registry).decode(), end="")
     except (ValueError, ConnectionError) as e:
         print(e)
