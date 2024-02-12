@@ -14,11 +14,11 @@ def get_data(shellyIP: str) -> Dict:
     result = get(url)
     if result.status_code != 200:
         raise ValueError(f"Unable to call shelly PM: {result.status_code}")
-    data: Dict = {}
-    data['current'] = result.json()['current']
-    data['apower'] = result.json()['apower']
-    data['aenergy'] = result.json()['aenergy']['total']
-
+    data: Dict = dict(
+        current=result.json()['current'],
+        apower=result.json()['apower'],
+        energy=result.json()['aenergy']['total'],
+    )
     return data
 
 
@@ -51,7 +51,7 @@ def create_metrics(registry: CollectorRegistry) -> Dict:
         registry=registry,
         unit="A",
     )
-    metrics['aenergy'] = Gauge(
+    metrics['energy'] = Gauge(
         "energy",
         "Enery",
         labelnames=LABEL_NAMES,
@@ -67,6 +67,7 @@ def main():
     parser.add_argument('-i', '--ip', dest='shelly_ip', action='store',
                         help="Shelly MiniPM ip address")
     parser.add_argument('-e', '--energy', dest='energy', action='store_true', default=False)
+    parser.add_argument('-r', '--reset', dest='reset', action='store_true', default=False)
 
     args = parser.parse_args()
 
@@ -79,11 +80,13 @@ def main():
             collect_metrics(metrics['apower'], "homelab", data['apower'])
             collect_metrics(metrics['current'], "homelab", data['current'])
         else:
-            collect_metrics(metrics['aenergy'], "homelab", data['aenergy'])
-            reset_counters(args.shelly_ip)
+            collect_metrics(metrics['energy'], "homelab", data['energy'])
         print(generate_latest(registry).decode(), end="")
     except (ValueError, ConnectionError) as e:
         print(e)
+
+    if args.reset:
+        reset_counters(args.shelly_ip)
 
 
 if __name__ == "__main__":
